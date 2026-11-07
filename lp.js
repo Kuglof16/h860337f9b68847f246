@@ -772,7 +772,7 @@ function makeView(data, lap, { nodes, quads, memIdx, vm, disp, crash }) {
         up.add(pet.group); yaw.add(up); petGroup.add(yaw);
         const a = deg * Math.PI / 180;
         yaw.position.set(PET_CX + PET_RX * Math.cos(a), PET_RY * Math.sin(a), 0);
-        pets.push({ pet, yaw, up, name: HP.ROLES.find((r) => r.id === role).name, phase: i * 0.37 });
+        pets.push({ pet, yaw, up, name: HP.ROLES.find((r) => r.id === role).name.replace(/設計役$/, '設計'), phase: i * 0.37 });   // 「設計」: 「設計役」 sounded like someone playing a part
       } catch (e) { console.warn('pet', role, e); }
       setTimeout(next, 40);
     };
