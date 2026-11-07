@@ -1444,6 +1444,21 @@ window.LP = { beats, go: (id, p = 0) => { const b = beatById.get(id); const y = 
   for (const s of sections) {
     for (const el of s.el.querySelectorAll('[data-go]')) el.addEventListener('click', () => { if (active !== s) { active = s; } jump(s, el.dataset.go); });
   }
+  // The part of the screen the section's words leave free. Wide (the camera's own rule): the room right of the panel,
+  // measured in screen heights so that a squarer screen (an iPad held sideways) stands the camera back as much as it
+  // needs; 0.93 is that room on a 1440 x 900 screen, where the shots were made. Tall: the room below the panel.
+  const ROOM_WIDE = 0.93, ROOM_TALL = 0.6, HEADER = 60;
+  function freeRoom(sec) {
+    const Wv = window.innerWidth, Hv = window.innerHeight, r = sec.el.querySelector('.panel')?.getBoundingClientRect();
+    const seen = r && r.bottom > HEADER && r.top < Hv;
+    if (Wv / Hv > 1.15) {
+      const left = seen ? Math.max(0, r.right) : 0, free = Math.max(160, Wv - left);
+      return { sx: (left + free / 2) / Wv - 0.5, my: 0.2, k: clamp(ROOM_WIDE / (free / Hv), 1, 1.8) };
+    }
+    if (Wv < 600) return { sx: 0.2, my: 0.2, k: 1 };   // a phone: the words fill most of the screen, so the car keeps its place below them
+    const top = seen ? clamp(r.bottom, HEADER, Hv - 180) : HEADER, free = Hv - top;
+    return { sx: 0.2, my: (top + free / 2) / Hv - 0.5, k: clamp(ROOM_TALL / (free / Hv), 1, 1.8) };
+  }
   function tick(now) {
     requestAnimationFrame(tick);
     const s = whichSection();
@@ -1477,8 +1492,10 @@ window.LP = { beats, go: (id, p = 0) => { const b = beatById.get(id); const y = 
       const w = window.innerWidth / window.innerHeight > 1.15;   // wide: room on the right for the stop line; narrow: the car in the middle
       shot = { ...shot, az: shot.az - 180, dist: shot.dist * (w ? 2 : 1), look: [shot.look[0] - 1300 + (w ? 900 : -1000), shot.look[1], shot.look[2]], sx: w ? 0.08 : shot.sx };
     }
-    // the words sit on the left: the car stands to the right of them (on a phone, below them)
-    shot = { ...shot, sx: Math.min(0.24, (shot.sx ?? 0) + 0.12), sy: -0.04, my: 0.2 };
+    // the words sit on the left: the car stands in the room right of them (on a tall screen, below them),
+    // and the camera stands back when that room is small, so the words never cover much of the car
+    const room = freeRoom(active);
+    shot = { ...shot, dist: shot.dist * room.k, sx: room.sx + (Math.min(0.24, (shot.sx ?? 0) + 0.12) - 0.2), sy: -0.04, my: room.my };
     if (fromShot && now - switchedAt < 900) shot = V.mixShot(fromShot, shot, ease((now - switchedAt) / 900));
     lastShot = shot;
     V.finish(shot);
