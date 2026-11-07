@@ -61,6 +61,7 @@
   h1 { margin: 0; font-size: clamp(36px, 4.4vw, 62px); line-height: 1.14; letter-spacing: -.01em; }
   h2 { margin: 0 0 14px; font-size: clamp(23px, 2.5vw, 34px); line-height: 1.32; }
   .panel p { margin: 0 0 12px; }
+  .ph { display: inline-block; }   /* a heading wraps between these phrases, not inside a word */
   .lead { margin: 16px 0 2px !important; font-size: clamp(16px, 1.5vw, 20px); font-weight: 700; }
   .what { font-size: 14px; color: var(--soft); }
   .ctas { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
@@ -228,7 +229,7 @@
 <section class="scene" data-scene="team" id="how">
   <div class="panel">
     <p class="kicker">HIRAKU がすること</p>
-    <h2>それぞれのスキルを持ったエージェントが、分担します。</h2>
+    <h2><span class="ph">設計のエージェントが</span><span class="ph">形を決め、</span><br><span class="ph">分野ごとのエージェントが</span><span class="ph">解析で確かめます。</span></h2>
     <ol class="steps">
       <li><b>日本語で伝える</b>作りたいものを、ふだんの言葉で。分からないところは聞き返します。</li>
       <li><b>解析を選ぶ</b>Claude が、作るものに合わせて必要な解析を選びます。</li>
