@@ -54,8 +54,31 @@ function setBig(el, value, unit) {
   el.textContent = value;
   if (unit) { const s = document.createElement('small'); s.textContent = unit; el.append(s); }
 }
+// the four friction circles (brake run): a circle is mu x the tyre's load, the line is the force the road gives it now
+const fcEl = $('#hFc');
+let fcParts = null;
+function drawFc(fc) {
+  if (!fcEl) return;
+  fcEl.style.display = fc ? '' : 'none';
+  if (!fc) return;
+  if (!fcParts) {
+    const names = ['前・左', '前・右', '後・左', '後・右'];
+    fcEl.innerHTML = '<svg viewBox="0 0 232 76" aria-hidden="true">' + names.map((n, i) => `<g transform="translate(${29 + 58 * i},30)"><line class="ax" x1="-28" x2="28"/><line class="ax" y1="-28" y2="28"/><circle class="rim" r="26"/><line class="f" x2="0" y2="0"/><circle class="dot" r="3.6"/><text y="43">${n}</text></g>`).join('') + '</svg><p></p>';
+    fcParts = [...fcEl.querySelectorAll('g')].map((g) => ({ g, rim: g.querySelector('.rim'), f: g.querySelector('.f'), dot: g.querySelector('.dot') }));
+    fcParts.note = fcEl.querySelector('p');
+  }
+  const k = 26 / fc.max;   // the biggest circle of the run fills its place
+  fc.wheels.forEach((w, i) => {
+    const q = fcParts[i], x = (-w.fy * k).toFixed(1), y = (-w.fx * k).toFixed(1);   // seen from above, the front up: braking points back (down)
+    q.rim.setAttribute('r', (w.lim * k).toFixed(1));
+    q.f.setAttribute('x2', x); q.f.setAttribute('y2', y); q.dot.setAttribute('cx', x); q.dot.setAttribute('cy', y);
+    q.g.classList.toggle('slide', !!w.slide);
+  });
+  setText(fcParts.note, fc.note);
+}
 function hud(o, opacity = 1) {
   hudEl.box.style.opacity = opacity;
+  drawFc(o.fc || null);
   setBig(hudEl.big, o.big ?? '', o.unit ?? '');
   hudEl.big.style.display = o.big ? '' : 'none';
   hudEl.big.style.color = o.color || '';
@@ -631,6 +654,31 @@ function makeView(data, lap, { nodes, quads, memIdx, vm, disp, crash }) {
   const lineMat = new THREE.MeshBasicMaterial({ color: 0xc8402a, transparent: true });
   const stopLine = new THREE.Mesh(UNIT, lineMat);
   { const s = lap.brake.scene.find((x) => x.kind === 'gate'); stopLine.position.set(s.position_mm[0], 0, 4); stopLine.scale.set(90, s.size_mm[1], 4); props.add(stopLine); }
+  // where the brake was pressed: the stop line is 14 m on from it (the record's gate: the front tyre's front edge stops by then)
+  const pressLine = new THREE.Mesh(UNIT, new THREE.MeshBasicMaterial({ color: 0x2a2824, transparent: true }));
+  { const s = lap.brake.scene.find((x) => x.kind === 'gate'); pressLine.position.set(s.position_mm[0] - lap.brake.limit * 1000, 0, 4); pressLine.scale.set(60, s.size_mm[1], 4); props.add(pressLine); }
+  // the force each tyre takes from the road: an arrow on the ground from its contact, red while the tyre slides
+  const arrowMat = [new THREE.MeshBasicMaterial({ color: 0x2a2824 }), new THREE.MeshBasicMaterial({ color: 0xc8402a })];
+  const shaftGeo = new THREE.CylinderGeometry(24, 24, 1, 10); shaftGeo.rotateZ(-Math.PI / 2); shaftGeo.translate(0.5, 0, 0);
+  const headGeo = new THREE.ConeGeometry(70, 160, 14); headGeo.rotateZ(-Math.PI / 2); headGeo.translate(80, 0, 0);
+  const tyreArrows = [0, 1, 2, 3].map(() => {
+    const g = new THREE.Group(), shaft = new THREE.Mesh(shaftGeo, arrowMat[0]), head = new THREE.Mesh(headGeo, arrowMat[0]);
+    g.add(shaft, head); g.visible = false; props.add(g); return { g, shaft, head };
+  });
+  /** f: per wheel { x, y, fx, fy, slide } (mm, N), k mm per N. Returns where each arrow ends, or null for one too short to draw. */
+  function tyreForces(f, k = 0.6) {
+    return f.map((w, n) => {
+      const a = tyreArrows[n], F = Math.hypot(w.fx, w.fy), L = F * k;
+      a.g.visible = L > 60;
+      if (!a.g.visible) return null;
+      const shaftL = Math.max(1, L - 160);
+      a.shaft.scale.set(shaftL, 1, 1); a.head.position.x = shaftL;
+      a.shaft.material = a.head.material = arrowMat[w.slide ? 1 : 0];
+      const y = w.y + Math.sign(w.y) * 190;   // beside the tyre on its outer side, so the tyre does not hide it
+      a.g.position.set(w.x, y, 90); a.g.rotation.set(0, 0, Math.atan2(w.fy, w.fx));
+      return rig.localToWorld(new THREE.Vector3(w.x + (w.fx / F) * L, y + (w.fy / F) * L, 90));
+    });
+  }
   const coneMat = new THREE.MeshLambertMaterial({ color: 0xd2522f });
   const coneGeo = new THREE.ConeGeometry(120, 420, 16); coneGeo.rotateX(Math.PI / 2); coneGeo.translate(0, 0, 210);
   const cones = new THREE.InstancedMesh(coneGeo, coneMat, lap.dlc.cones.length);
@@ -647,7 +695,7 @@ function makeView(data, lap, { nodes, quads, memIdx, vm, disp, crash }) {
   const trailGeo = new THREE.BufferGeometry(); trailGeo.setAttribute('position', new THREE.Float32BufferAttribute(trailPts, 3)); trailGeo.setIndex(trailIdx);
   const trail = new THREE.Mesh(trailGeo, new THREE.MeshBasicMaterial({ color: 0xc8402a, side: THREE.DoubleSide }));
   trail.frustumCulled = false; props.add(trail);
-  const allProps = [stepBox, tableBox, wallBox, stopLine, cones, trail];
+  const allProps = [stepBox, tableBox, wallBox, stopLine, pressLine, cones, trail];
 
   // ---------- real motion: the frame in the crash, the shape of the vibration, the parts going on
   const CR = lap.crash, cN = CR.nN, cF = CR.nF;
@@ -725,6 +773,7 @@ function makeView(data, lap, { nodes, quads, memIdx, vm, disp, crash }) {
     story.visible = false;
     rig.visible = false; rig.rotation.set(0, 0, 0);
     for (const p of allProps) p.visible = false;
+    for (const a of tyreArrows) a.g.visible = false;
     petGroup.visible = false;
     floorMat.opacity = 0.26;
     groundMat.opacity = 0.09;
@@ -800,7 +849,7 @@ function makeView(data, lap, { nodes, quads, memIdx, vm, disp, crash }) {
   }
 
   return { pets: showPets, radius, T_END, carX, reset, finish, storyAt, ringMark, pin, onCar, later, drawCar, poseStill, poseRec, recAt, onWheel: (n) => wheels[n].getWorldPosition(new THREE.Vector3()),
-    resize, mixShot, turbo, tc, carOpacity, prop, rig, wheels, props: { stepBox, tableBox, wallBox, stopLine, cones, trail }, trailTo: (k) => { trailGeo.setDrawRange(0, Math.floor(k * (lap.dlc.run.x.length - 1)) * 6); }, crashFrame, drawMode, steps, stepOf, buildOffset, N_STEPS, memberOf, maps,
+    resize, mixShot, turbo, tc, carOpacity, prop, rig, wheels, props: { stepBox, tableBox, wallBox, stopLine, pressLine, cones, trail }, tyreForces, trailTo: (k) => { trailGeo.setDrawRange(0, Math.floor(k * (lap.dlc.run.x.length - 1)) * 6); }, crashFrame, drawMode, steps, stepOf, buildOffset, N_STEPS, memberOf, maps,
     tint: (x) => { groundMat.opacity = x; }, shadow: (x) => { floorMat.opacity = x; }, frameFade: (x) => { frameMat.opacity = x; }, carS };
 }
 
@@ -833,6 +882,22 @@ const PRE_B = 1.4;
 const B_DT = RUN_B.t[1] - RUN_B.t[0], B_V0 = (RUN_B.x[1] - RUN_B.x[0]) / B_DT;
 const B_W0 = ['FL', 'FR', 'RL', 'RR'].map((w) => (RUN_B.w[w].a[1] - RUN_B.w[w].a[0]) / B_DT);
 const brakeT = (p) => lerp(-PRE_B, last(RUN_B.t), clamp(p / 0.48));
+const B_TY = lap.brake.tyre, B_WN = ['FL', 'FR', 'RL', 'RR'];
+const B_GATE = lap.brake.scene.find((x) => x.kind === 'gate').position_mm[0];
+const B_R = RUN_B.w.FL.z[0];
+const B_FRONT = RUN_B.w.FL.x.map(((m) => (x) => (m = Math.max(m, x)))(-Infinity));   // the furthest the front wheel has come so far   // the front tyre's radius: its front edge is the centre plus this
+/** The record at time t (t < 0: still at the starting speed): each tyre's force, friction limit and sliding, and the front edge. */
+function brakeAt(t) {
+  const T = RUN_B.t, n = T.length, u = clamp((Math.max(0, t) - T[0]) / (T[n - 1] - T[0])) * (n - 1), i = Math.min(n - 2, Math.floor(u)), f = u - i;
+  const g = (a) => a[i] + (a[i + 1] - a[i]) * f;
+  return { tyres: B_WN.map((w) => ({ fx: g(B_TY[w].fx), fy: g(B_TY[w].fy), lim: g(B_TY[w].lim), slide: B_TY[w].slide[f < 0.5 ? i : i + 1] })),
+    front: (t < 0 ? RUN_B.w.FL.x[0] + B_V0 * t : g(B_FRONT)) + B_R };
+}
+const B_LIMMAX = Math.max(...B_WN.flatMap((w) => B_TY[w].lim));
+// while all four slide at speed: how much of the circle a locked tyre still gives (the hand calculation took all of it, mu 0.6)
+const B_SLIDE = (() => { const u = []; RUN_B.t.forEach((_, i) => { if (RUN_B.v[i] > 3 && B_WN.every((w) => B_TY[w].slide[i])) for (const w of B_WN) u.push(Math.abs(B_TY[w].fx[i]) / B_TY[w].lim[i]); });
+  return u.reduce((a, b) => a + b, 0) / u.length; })();
+const B_T_SLIDE = 1.2;   // a moment while all four slide, for the circles after the stop
 
 const beats = [];
 const add = (id, len, o = {}) => { beats.push({ id, len, ...o }); };
@@ -1019,17 +1084,26 @@ add('brake', 150, {
     V.rig.visible = true;
     V.poseRec(rec, X.brake);
     V.drawCar(4);
-    V.prop(V.props.stopLine, ease(p / 0.08) * (1 - ease((p - 0.95) / 0.05)));
-    V.pin('line', `止まる線 ${NUM(lap.brake.limit, 0)} m`, V.rig.localToWorld(V.props.stopLine.position.clone()), ease(p / 0.08), { up: 90, cls: 'red lg keep' });
+    const shown = ease(p / 0.08) * (1 - ease((p - 0.95) / 0.05)), at = brakeAt(t);
+    V.prop(V.props.stopLine, shown); V.prop(V.props.pressLine, shown);
+    V.pin('line', `停止線まで ${NUM(Math.max(0, (B_GATE - at.front) / 1000), 2)} m`, V.rig.localToWorld(V.props.stopLine.position.clone()), ease(p / 0.08), { up: 90, cls: 'red lg keep' });
+    V.pin('press', 'ブレーキ開始', V.rig.localToWorld(V.props.pressLine.position.clone()), ease(p / 0.08), { up: 56, cls: 'lg keep' });
+    V.pin('speed', `${NUM(Math.max(0, rec.v), 0)} km/h`, V.onCar(-1010, 0, 2250), ease(p / 0.06), { up: 22, cls: 'sign keep' });
+    if (p < 0.5) {
+      const tips = V.tyreForces(at.tyres.map((w, n) => ({ ...w, x: rec.w[n].x, y: rec.w[n].y })));
+      if (tips[1]) V.pin('force', 'タイヤの止める力', tips[1], 1, { up: -46, cls: 'red keep' });
+    }
     return { az: 92, el: 11, dist: R * 4.7, look: [X.brake + rec.x + 1300, 0, 560], sx: 0, sy: -0.09 };
   },
   hud(p) {
-    const B = lap.brake, t = brakeT(p), rec = recIn(RUN_B, Math.max(0, t));
+    const B = lap.brake, t = brakeT(p), rec = recIn(RUN_B, Math.max(0, t)), at = brakeAt(t);
     rec.x += B_V0 * Math.min(0, t);
     const d = clamp((rec.x - brakeStart) / 1000, 0, B.pair.cae);
-    if (p < 0.5) return { big: NUM(d, 2), unit: 'm', cap: `いま ${NUM(Math.max(0, rec.v), 0)} km/h（35 km/h からブレーキ、基準 ${NUM(B.limit, 0)} m）` };
-    if (p < 0.77) return { big: NUM(B.pair.cae, 2), unit: 'm', cap: '止まるまでの距離', hand: `${NUM(B.pair.hand, 2)} m`, cae: `${NUM(B.pair.cae, 2)} m`, state: '合わない', ng: true };
-    return { big: NUM(B.pair.cae, 2), unit: 'm', cap: '原因を書き残し、手計算をやり直す', hand: `${NUM(B.pair2.hand, 2)} m`, cae: `${NUM(B.pair2.cae, 2)} m`, state: 'OK' };
+    const circles = `摩擦円 (μ ${NUM(B.mu, 1)} × 荷重) と、いまタイヤが路面から受ける力。赤は滑っている`;
+    const slid = { wheels: brakeAt(B_T_SLIDE).tyres, max: B_LIMMAX, note: `ロックして滑ると、止める力は円の ${NUM(B_SLIDE * 10, 0)} 割ほどしか出ない` };
+    if (p < 0.5) return { big: NUM(d, 2), unit: 'm', cap: `いま ${NUM(Math.max(0, rec.v), 0)} km/h・停止線まで ${NUM(Math.max(0, (B_GATE - at.front) / 1000), 2)} m (ブレーキ開始から ${NUM(B.limit, 0)} m)`, fc: { wheels: at.tyres, max: B_LIMMAX, note: circles } };
+    if (p < 0.77) return { big: NUM(B.pair.cae, 2), unit: 'm', cap: '止まるまでの距離', hand: `${NUM(B.pair.hand, 2)} m`, cae: `${NUM(B.pair.cae, 2)} m`, state: '合わない', ng: true, fc: slid };
+    return { big: NUM(B.pair.cae, 2), unit: 'm', cap: '原因を書き残し、手計算をやり直す', hand: `${NUM(B.pair2.hand, 2)} m`, cae: `${NUM(B.pair2.cae, 2)} m`, state: 'OK', fc: slid };
   },
 });
 add('dlc', 100, {
@@ -1455,9 +1529,9 @@ window.LP = { beats, go: (id, p = 0) => { const b = beatById.get(id); const y = 
       const left = seen ? Math.max(0, r.right) : 0, free = Math.max(160, Wv - left);
       return { sx: (left + free / 2) / Wv - 0.5, my: 0.2, k: clamp(ROOM_WIDE / (free / Hv), 1, 1.8) };
     }
-    if (Wv < 600) return { sx: 0.2, my: 0.2, k: 1 };   // a phone: the words fill most of the screen, so the car keeps its place below them
+    // a phone: the words fill most of the screen, so the camera stands back only a little (or the car gets too small)
     const top = seen ? clamp(r.bottom, HEADER, Hv - 180) : HEADER, free = Hv - top;
-    return { sx: 0.2, my: (top + free / 2) / Hv - 0.5, k: clamp(ROOM_TALL / (free / Hv), 1, 1.8) };
+    return { sx: 0.2, my: (top + free / 2) / Hv - 0.5, k: clamp(ROOM_TALL / (free / Hv), 1, Wv < 600 ? 1.25 : 1.8) };
   }
   function tick(now) {
     requestAnimationFrame(tick);

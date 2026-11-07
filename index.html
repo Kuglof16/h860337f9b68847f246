@@ -41,6 +41,8 @@
   .ann.left b { left: auto; right: 8px; text-align: right; }
   .ann.red { color: var(--red); }
   .ann.lg b { font-size: clamp(14px, 1.3vw, 19px); }
+  .ann.sign { color: #23211d; }
+  .ann.sign b { background: #23211d; color: #ffcf6b; border-radius: 6px; padding: 3px 10px 4px; font-size: clamp(16px, 1.5vw, 22px); font-variant-numeric: tabular-nums; }
 
   /* header */
   header { position: sticky; top: 0; z-index: 10; background: rgba(244,241,234,.9); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
@@ -113,6 +115,16 @@
   #hPair #hState { padding: 2px 10px 3px; border-radius: 5px; color: #fff; background: var(--ok); }
   #hPair #hState.ng { background: var(--red); }
   #hState:empty, #hHand:empty, #hCae:empty { display: none; }
+  #hFc { margin-top: 10px; }
+  #hFc svg { display: block; width: 100%; max-width: 300px; overflow: visible; }
+  #hFc .ax { stroke: var(--line); stroke-width: 1; }
+  #hFc .rim { fill: rgba(31,30,27,.04); stroke: var(--ink); stroke-width: 1.4; }
+  #hFc .f { stroke: var(--ink); stroke-width: 2.6; stroke-linecap: round; }
+  #hFc .dot { fill: var(--ink); }
+  #hFc .slide .f { stroke: var(--red); }
+  #hFc .slide .dot { fill: var(--red); }
+  #hFc text { font-size: 11px; fill: var(--soft); text-anchor: middle; }
+  #hFc p { margin: 2px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--soft); }
 
   /* sections without a scene cover the 3D */
   .solid { position: relative; z-index: 3; padding: clamp(56px, 9vh, 96px) var(--gutter); }
@@ -295,6 +307,7 @@
         <div id="hBig"><span></span></div>
         <div id="hCap"><span></span></div>
         <div id="hPair"><span id="hHand"></span><span id="hCae"></span><span id="hState"></span></div>
+        <div id="hFc" style="display:none"></div>
       </div>
     </div>
   </div>
