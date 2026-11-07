@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HIRAKU | CAE を、すべての作り手へ拓く</title>
+<meta name="description" content="作る前に、CAE で確かめる AI エージェント。">
+<meta property="og:title" content="HIRAKU | CAE を、すべての作り手へ拓く">
+<meta property="og:description" content="作る前に、CAE で確かめる AI エージェント。">
+<meta property="og:url" content="https://kuglof16.github.io/h860337f9b68847f246/">
+<meta property="og:image" content="https://kuglof16.github.io/h860337f9b68847f246/img/poster.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231b1a17'/%3E%3Cpath d='M9 7v18M23 7v18M9 16h14' stroke='%23f4f1ea' stroke-width='3.4'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root { --paper: #f4f1ea; --paper2: #ebe6db; --ink: #1b1a17; --soft: #6f6a5e; --line: #d8d2c4; --red: #c8402a; --cae: #1f7a8c; --ok: #2f7d4f; --dark: #141311;
+    --gutter: clamp(16px, 5vw, 72px); }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 64px; background: var(--paper); }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: "BIZ UDPGothic", "Yu Gothic UI", "Hiragino Sans", sans-serif; line-height: 1.7; -webkit-font-smoothing: antialiased; overflow-x: clip; }
+  a { color: inherit; }
+  video { display: block; max-width: 100%; }
+
+  /* the 3D sits behind the sections that have a scene */
+  #gl { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100svh; display: block; z-index: 0; }
+  .no3d #gl { display: none; }
+  #marks { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+  .q { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; background: var(--paper); border: 2.5px solid var(--ink); display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 700; opacity: 0; }
+  #ring { position: absolute; width: 140px; height: 140px; margin: -70px 0 0 -70px; border-radius: 50%; border: 5px solid var(--red); opacity: 0; }
+  #flash { position: absolute; width: 110px; height: 110px; margin: -55px 0 0 -55px; border-radius: 50%; border: 7px solid var(--red); opacity: 0; }
+  #ng { position: absolute; right: calc(var(--gutter) + 8px); top: 84px; padding: 6px 22px 8px; border-radius: 8px; background: var(--red); color: #fff; font-size: clamp(34px, 4vw, 60px); font-weight: 700; letter-spacing: .06em; opacity: 0; }
+  #note { position: absolute; right: calc(var(--gutter) + 8px); bottom: 22px; font-size: 13.5px; color: var(--soft); opacity: 0; }
+  .ann { position: absolute; width: 0; height: 0; opacity: 0; font-size: 13.5px; line-height: 1.35; white-space: nowrap; color: var(--ink); }
+  .ann::before { content: ""; position: absolute; left: -3.5px; top: -3.5px; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .ann i { position: absolute; left: 0; bottom: 0; width: 1px; height: var(--up, 64px); background: currentColor; }
+  .ann b { position: absolute; left: 8px; bottom: calc(var(--up, 64px) - 18px); font-weight: 700; padding: 2px 6px 3px; background: rgba(244,241,234,.9); white-space: pre; }
+  .ann.down i { bottom: auto; top: 0; }
+  .ann.down b { bottom: auto; top: calc(var(--up, 64px) - 18px); }
+  .ann.left b { left: auto; right: 8px; text-align: right; }
+  .ann.red { color: var(--red); }
+  .ann.lg b { font-size: clamp(14px, 1.3vw, 19px); }
+
+  /* header */
+  header { position: sticky; top: 0; z-index: 10; background: rgba(244,241,234,.9); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+  header .bar { display: flex; align-items: center; justify-content: space-between; height: 60px; padding: 0 var(--gutter); gap: 16px; }
+  .mark { font-size: 19px; font-weight: 700; letter-spacing: .34em; text-decoration: none; white-space: nowrap; }
+  nav.top { display: flex; align-items: center; gap: clamp(10px, 1.8vw, 24px); font-size: 14.5px; }
+  nav.top a { text-decoration: none; white-space: nowrap; }
+  nav.top a:not(.btn)[href]:hover { color: var(--red); }
+  .btn { display: inline-flex; align-items: center; gap: 10px; padding: 10px 19px 11px; border-radius: 999px; background: var(--ink); color: var(--paper); font-weight: 700; text-decoration: none; white-space: nowrap; transition: background .2s, transform .2s; }
+  .btn[href]:hover { background: var(--red); transform: translateY(-1px); }
+  .btn.ghost { background: rgba(244,241,234,.6); color: var(--ink); border: 1.5px solid var(--ink); }
+  .btn.big { padding: 15px 28px 16px; font-size: 18px; }
+
+  /* sections with a scene: the words on the left, the car to the right */
+  .scene { position: relative; z-index: 2; min-height: calc(100vh - 60px); min-height: calc(100svh - 60px); display: flex; align-items: center; padding: 40px var(--gutter); }
+  .panel { width: min(560px, 46vw); background: rgba(244,241,234,.9); border-radius: 16px; padding: clamp(20px, 2.4vw, 32px); }
+  .kicker { font-size: 13.5px; font-weight: 700; color: var(--red); letter-spacing: .08em; margin: 0 0 8px; }
+  h1 { margin: 0; font-size: clamp(36px, 4.4vw, 62px); line-height: 1.14; letter-spacing: -.01em; }
+  h2 { margin: 0 0 14px; font-size: clamp(23px, 2.5vw, 34px); line-height: 1.32; }
+  .panel p { margin: 0 0 12px; }
+  .lead { margin: 16px 0 2px !important; font-size: clamp(16px, 1.5vw, 20px); font-weight: 700; }
+  .what { font-size: 14px; color: var(--soft); }
+  .ctas { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+
+  ol.lines { list-style: none; margin: 0; padding: 0; font-size: clamp(18px, 1.8vw, 24px); font-weight: 700; line-height: 1.45; }
+  ol.lines li + li { margin-top: 10px; }
+  ol.lines li:last-child { color: var(--red); }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 20px; }
+  .stat { border-top: 2px solid var(--ink); padding-top: 8px; font-size: 13px; color: var(--soft); line-height: 1.5; }
+  .stat b { display: block; font-size: clamp(20px, 2vw, 28px); color: var(--ink); line-height: 1.2; }
+  ol.steps { margin: 0; padding: 0 0 0 1.3em; font-size: 15.5px; }
+  ol.steps li + li { margin-top: 8px; }
+  ol.steps b { display: block; }
+
+  .quote { font-size: clamp(19px, 2vw, 26px); font-weight: 700; line-height: 1.45; }
+  table.pairs { width: 100%; border-collapse: collapse; margin: 4px 0 14px; font-variant-numeric: tabular-nums; font-size: 14px; }
+  .pairs th, .pairs td { text-align: left; padding: 8px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .pairs th { font-size: 12.5px; color: var(--soft); font-weight: 400; }
+  .pairs td.n { font-weight: 700; white-space: nowrap; }
+  .pairs td.c { color: var(--cae); }
+  .pairs small { display: block; color: var(--soft); font-weight: 400; font-size: 12px; }
+  ul.brake { list-style: none; margin: 0; padding: 0; font-size: 14px; }
+  ul.brake li { padding: 6px 0 6px 14px; border-left: 3px solid var(--line); }
+  ul.brake li.ng { border-color: var(--red); }
+  ul.brake li.ok { border-color: var(--ok); }
+
+  ol.vers { list-style: none; margin: 0; padding: 0; font-size: 14.5px; }
+  ol.vers li { display: grid; grid-template-columns: 34px 1fr; gap: 6px; padding: 8px 10px; border-radius: 8px; cursor: pointer; transition: background .2s; }
+  ol.vers li b { font-variant-numeric: tabular-nums; }
+  ol.vers li.now { background: #fffdf8; box-shadow: inset 3px 0 0 var(--red); }
+  ol.vers em { font-style: normal; color: var(--red); font-weight: 700; }
+  ol.vers span.fix { display: block; color: var(--soft); font-size: 13.5px; }
+
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 6px; }
+  .tabs button { font: inherit; font-size: 14px; padding: 6px 12px 7px; border-radius: 999px; border: 1.5px solid var(--line); background: #fffdf8; color: var(--ink); cursor: pointer; }
+  .tabs button.on { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+
+  /* the numbers of what is playing, inside the section */
+  .hudslot { margin-top: 14px; min-height: 92px; }
+  #hud { opacity: 0; transition: opacity .2s; }
+  #hBig { font-size: clamp(34px, 4vw, 54px); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  #hBig small { font-size: .42em; margin-left: 6px; font-weight: 400; }
+  #hCap { margin-top: 6px; font-size: 13.5px; line-height: 1.5; color: var(--soft); }
+  #hPair { margin-top: 8px; font-size: 14px; font-variant-numeric: tabular-nums; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; font-weight: 700; }
+  #hHand::before, #hCae::before { content: ""; display: inline-block; vertical-align: 1px; margin-right: 6px; }
+  #hHand::before { width: 9px; height: 9px; border: 2.5px solid var(--ink); border-radius: 50%; }
+  #hCae { color: var(--cae); }
+  #hCae::before { width: 13px; height: 6px; background: var(--cae); }
+  #hPair #hState { padding: 2px 10px 3px; border-radius: 5px; color: #fff; background: var(--ok); }
+  #hPair #hState.ng { background: var(--red); }
+  #hState:empty, #hHand:empty, #hCae:empty { display: none; }
+
+  /* sections without a scene cover the 3D */
+  .solid { position: relative; z-index: 3; padding: clamp(56px, 9vh, 96px) var(--gutter); }
+  .flow { background: var(--dark); color: var(--paper); }
+  .flow h2 { color: var(--paper); }
+  .flows { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px; }
+  .flows figure { margin: 0; }
+  .flows video { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; background: #000; }
+  .flows figcaption { margin-top: 8px; font-size: 14px; color: #cfcabb; }
+  .tools { background: var(--paper2); }
+  .tools .inner { display: grid; grid-template-columns: .9fr 1.1fr; gap: clamp(24px, 4vw, 56px); align-items: start; max-width: 1180px; margin: 0 auto; }
+  .total { font-size: clamp(50px, 6.6vw, 92px); font-weight: 700; line-height: 1; color: var(--red); font-variant-numeric: tabular-nums; margin: 8px 0 6px; }
+  .total small { font-size: .32em; color: var(--ink); margin-left: 6px; font-weight: 400; }
+  ul.solvers { list-style: none; margin: 0; padding: 0; columns: 2; column-gap: 26px; font-size: 14.5px; }
+  ul.solvers li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); break-inside: avoid; }
+  ul.solvers li span:last-child { font-variant-numeric: tabular-nums; color: var(--soft); }
+  .tnote { margin-top: 12px; font-size: 13px; color: var(--soft); }
+  .inner2 { max-width: 1180px; margin: 0 auto; }
+
+  footer { position: relative; z-index: 3; background: var(--ink); color: #d9d4c6; padding: 48px var(--gutter) 34px; font-size: 14px; }
+  footer .cols { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 28px; max-width: 1180px; margin: 0 auto; }
+  footer .wm { font-size: 28px; font-weight: 700; letter-spacing: .34em; color: var(--paper); }
+  footer h4 { margin: 0 0 10px; font-size: 13px; color: #a8a294; font-weight: 400; letter-spacing: .06em; }
+  footer ul { list-style: none; margin: 0; padding: 0; }
+  footer li + li { margin-top: 7px; }
+  footer a { text-decoration: none; }
+  footer a[href]:hover { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
+  footer .fine { max-width: 1180px; margin: 30px auto 0; padding-top: 16px; border-top: 1px solid #3a3833; font-size: 12.5px; color: #a8a294; line-height: 1.7; }
+
+  /* the cue at the foot of the first screen: there is more below */
+  .cue { position: fixed; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 6; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 16px 6px; border-radius: 999px; background: rgba(244,241,234,.92); border: 1px solid var(--line); color: var(--ink); font-size: 13.5px; font-weight: 700; text-decoration: none; white-space: nowrap; transition: opacity .35s; }
+  .cue i { width: 12px; height: 12px; border-right: 2.5px solid var(--red); border-bottom: 2.5px solid var(--red); transform: rotate(45deg); margin-top: -2px; animation: cue 1.6s ease-in-out infinite; }
+  @keyframes cue { 0%, 100% { translate: 0 -2px; } 50% { translate: 0 4px; } }
+  .scrolled .cue { opacity: 0; pointer-events: none; }
+
+  #load { position: fixed; left: 0; top: 0; height: 3px; width: 0; background: var(--red); z-index: 20; transition: width .25s, opacity .4s; }
+
+  @media (max-width: 900px) {
+    nav.top a.sec { display: none; }
+    .scene { align-items: flex-start; padding-top: 18px; min-height: 108svh; }
+    .panel { width: 100%; }
+    .ann:not(.keep) { display: none; }
+    .panel { background: rgba(244,241,234,.97); }
+    #marks { clip-path: inset(0 var(--gutter)); }
+    .flows, .tools .inner { grid-template-columns: 1fr; }
+    footer .cols { grid-template-columns: 1fr 1fr; }
+    footer .cols > div:first-child { grid-column: 1 / -1; }
+  }
+  @media (max-width: 520px) {
+    nav.top a.ext { display: none; }
+    .stats { grid-template-columns: 1fr 1fr 1fr; }
+    ul.solvers { columns: 1; }
+    /* the pairs: the name on its own line, the two numbers side by side below it */
+    table.pairs, .pairs thead, .pairs tbody { display: block; }
+    .pairs tr { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--line); }
+    .pairs th, .pairs td { border-bottom: 0; padding: 6px 4px; }
+    .pairs th:first-child, .pairs td:first-child { grid-column: 1 / -1; padding-bottom: 0; }
+    .pairs td:first-child { font-weight: 700; }
+  }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div id="load"></div>
+<canvas id="gl" aria-hidden="true"></canvas>
+<div id="marks" aria-hidden="true"><div id="flash"></div><div id="ring"></div><div id="ng">NG</div><div id="note">色は応力、変形は 30 倍に誇張</div></div>
+
+<header>
+  <div class="bar">
+    <a class="mark" href="#">HIRAKU</a>
+    <nav class="top">
+      <a class="sec" href="#how">HIRAKU がすること</a>
+      <a class="sec" href="#check">二重チェック</a>
+      <a class="sec" href="#revise">設計を直す</a>
+      <a class="sec" href="#tests">確かめられること</a>
+      <a class="ext" data-link="video" href="#">動画</a>
+      <a class="ext" data-link="repo" href="#">GitHub</a>
+      <a class="btn" data-link="demo" href="#">デモを見る</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+<section class="scene" data-scene="hero" id="hero">
+  <div class="panel">
+    <h1>CAE を、<br>すべての<br>作り手へ拓く。</h1>
+    <p class="lead">作る前に、CAE で確かめる AI エージェント</p>
+    <p class="what">CAE = コンピュータで設計を試す技術</p>
+    <div class="ctas">
+      <a class="btn big" data-link="demo" href="#">デモを見る <span aria-hidden="true">→</span></a>
+      <a class="btn ghost big" data-link="video" href="#">3 分の動画</a>
+    </div>
+  </div>
+  <a class="cue" href="#why"><span>下へ続きます</span><i aria-hidden="true"></i></a>
+</section>
+
+<section class="scene" data-scene="why" id="why">
+  <div class="panel">
+    <p class="kicker">作ってみても分からない</p>
+    <ol class="lines">
+      <li>ものづくりは、作ってみないと分からない。</li>
+      <li>でも、作ってみても分からないこともあります。</li>
+      <li>実験で NG が出ても、何が原因か分からない。</li>
+      <li>そんな場合でも、解析したら分かることもあります。</li>
+    </ol>
+    <div class="stats">
+      <div class="stat"><b>専門家だけ</b>CAE を扱える人</div>
+      <div class="stat"><b>99 %</b>製造業の企業のうち、中小企業</div>
+      <div class="stat"><b>16 %</b>小さな会社で CAE を使えている技術者</div>
+    </div>
+  </div>
+</section>
+
+<section class="scene" data-scene="team" id="how">
+  <div class="panel">
+    <p class="kicker">HIRAKU がすること</p>
+    <h2>それぞれのスキルを持ったエージェントが、分担します。</h2>
+    <ol class="steps">
+      <li><b>日本語で伝える</b>作りたいものを、ふだんの言葉で。分からないところは聞き返します。</li>
+      <li><b>解析を選ぶ</b>Claude が、作るものに合わせて必要な解析を選びます。</li>
+      <li><b>予想してから解く</b>解析の前に、手計算で結果を予想します。hooks で義務づけています。</li>
+      <li><b>直して、また確かめる</b>設計 → 評価 → 設計修正を繰り返します。</li>
+    </ol>
+  </div>
+</section>
+
+<section class="scene" data-scene="check" id="check">
+  <div class="panel">
+    <p class="kicker">手計算と CAE の二重チェック</p>
+    <p class="quote">手計算は解析の間違いを、<br>解析は AI の思い込みを見つける。</p>
+    <p>CAE も、設定を間違えれば判断を誤ります。だから、どの解析にも先に手計算の予想を書かせ、出てきた値と比べます。</p>
+    <table class="pairs">
+      <thead><tr><th>段差 100 mm</th><th>手計算</th><th>解析</th></tr></thead>
+      <tbody>
+        <tr><td>前輪 1 輪の水平の力</td><td class="n">1,092.9 N</td><td class="n c">1,103.7 N</td></tr>
+        <tr><td>フレームの最大応力</td><td class="n">40.0〜77.09 MPa<small>単純はり〜つなぎ目</small></td><td class="n c">61.15 MPa</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-bottom:6px">合わないときは、理由が分かるまで先へ進みません。</p>
+    <ul class="brake">
+      <li class="ng">35 km/h からのブレーキ。手計算 8.03 m、解析 10.72 m で合わない</li>
+      <li>原因: ロックした輪は滑る。摩擦は 0.6 でなく約 0.44</li>
+      <li class="ok">予想し直して 10.87 m。解析と合い、基準の 14 m 以内</li>
+    </ul>
+  </div>
+</section>
+
+<section class="scene" data-scene="revise" id="revise">
+  <div class="panel">
+    <p class="kicker">設計 → 評価 → 設計修正</p>
+    <h2>例えば、林道を走る二人乗りの車。</h2>
+    <ol class="vers">
+      <li data-ver="0" data-go="chain1"><b>v1</b><span><em>膝がハンドルに当たる。</em>前輪も 16.5° でレールに当たる。<span class="fix">→ トレッドを広げ、運転席とハンドルの位置を直す</span></span></li>
+      <li data-ver="1" data-go="chain2"><b>v2</b><span><em>乗り降りの開口に、動かない物がある。</em><span class="fix">→ 横の枠を減らし、開口は片手で外せる留め具の網に</span></span></li>
+      <li data-ver="2" data-go="chain3"><b>v3</b><span><em>40 km/h まで 7.39 秒。</em>基準は 6 秒。<span class="fix">→ モーターを 10 kW から 17 kW に。5.72 秒</span></span></li>
+      <li data-ver="3" data-go="chain4"><b>v4</b><span><em>段差でつなぎ目が 554 MPa。</em>限界は 143 MPa。<span class="fix">→ レールの肉厚を 2.3 mm から 4.5 mm に。ガセットを足す</span></span></li>
+      <li data-ver="4"><b>v5</b><span>つなぎ目は 130 MPa。</span></li>
+    </ol>
+    <div class="hudslot"></div>
+  </div>
+</section>
+
+<section class="scene" data-scene="tests" id="tests">
+  <div class="panel">
+    <p class="kicker">確かめられること</p>
+    <h2>段差を越えられるか。倒れないか。<br>オーバーヒートしないか。</h2>
+    <p>衝突も、振動も、組み立て手順も。どれも、保存した解析の記録どおりに車が動きます。</p>
+    <div class="tabs">
+      <button type="button" data-go="step">段差</button>
+      <button type="button" data-go="brake">ブレーキ</button>
+      <button type="button" data-go="dlc">車線変更</button>
+      <button type="button" data-go="tilt">傾斜台</button>
+      <button type="button" data-go="heat">温度</button>
+      <button type="button" data-go="crash">衝突</button>
+      <button type="button" data-go="shake">振動</button>
+      <button type="button" data-go="build">組み立て</button>
+    </div>
+    <div class="hudslot">
+      <div id="hud" aria-live="off">
+        <div id="hBig"><span></span></div>
+        <div id="hCap"><span></span></div>
+        <div id="hPair"><span id="hHand"></span><span id="hCae"></span><span id="hState"></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="solid flow" id="flow">
+  <div class="inner2">
+    <p class="kicker">流体</p>
+    <h2>空気の流れや、冠水路を渡る水も。</h2>
+    <div class="flows">
+      <figure><video src="img/stream.mp4" poster="img/stream.jpg" muted loop playsinline preload="none" aria-label="車のまわりの空気の流線"></video><figcaption>車のまわりの流線。色は空気の速さ</figcaption></figure>
+      <figure><video src="img/water.mp4" poster="img/water.jpg" muted loop playsinline preload="none" aria-label="冠水路を渡る車と水しぶき"></video><figcaption>冠水路を渡る車と水しぶき</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section class="solid tools" id="tools">
+  <div class="inner">
+    <div>
+      <p class="kicker">解析ツール</p>
+      <h2>この CAE ツールは、<br>Claude Code と書きました。</h2>
+      <div class="total" id="total"></div>
+      <p class="tnote" id="tnote"></p>
+    </div>
+    <ul class="solvers" id="solvers"></ul>
+  </div>
+</section>
+
+<section class="scene" data-scene="ask" id="ask">
+  <div class="panel">
+    <h2 style="font-size:clamp(28px,3.4vw,46px)">結果を、<br>自分で見てください。</h2>
+    <p>インストールは要りません。保存した実行を、そのまま再生します。</p>
+    <div class="ctas">
+      <a class="btn big" data-link="demo" href="#">デモを見る <span aria-hidden="true">→</span></a>
+      <a class="btn ghost" data-link="video" href="#">3 分の動画</a>
+      <a class="btn ghost" data-link="repo" href="#">GitHub</a>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="cols">
+    <div>
+      <div class="wm">HIRAKU</div>
+      <p style="margin:10px 0 0">作る前に、CAE で確かめる AI エージェント</p>
+    </div>
+    <div>
+      <h4>このページ</h4>
+      <ul>
+        <li><a href="#why">作ってみても分からない</a></li>
+        <li><a href="#how">HIRAKU がすること</a></li>
+        <li><a href="#check">手計算と CAE の二重チェック</a></li>
+        <li><a href="#revise">設計 → 評価 → 設計修正</a></li>
+        <li><a href="#tests">確かめられること</a></li>
+        <li><a href="#flow">流体</a></li>
+        <li><a href="#tools">解析ツール</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>リンク</h4>
+      <ul>
+        <li><a data-link="demo" href="#">デモを見る</a></li>
+        <li><a data-link="video" href="#">3 分の動画</a></li>
+        <li><a data-link="repo" href="#">GitHub のリポジトリ</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="fine">Built with Claude: Japan 2026 の提出作品です。作者は CAE の実務者です。数字と車の動きは、保存した解析の記録から取っています。統計の出典はリポジトリの README にあります。</div>
+</footer>
+
+<script src="config.js"></script>
+<script>
+  // the cue at the foot of the first screen goes once the page has been scrolled
+  const markScrolled = () => document.documentElement.classList.toggle('scrolled', window.scrollY > 60);
+  window.addEventListener('scroll', markScrolled, { passive: true }); markScrolled();
+</script>
+<script src="pets/pet3d.js"></script>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }</script>
+<script type="module" src="lp.js"></script>
+</body>
+</html>
