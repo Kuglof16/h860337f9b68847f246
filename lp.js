@@ -1667,11 +1667,38 @@ window.LP = { beats, go: (id, p = 0) => { const b = beatById.get(id); const y = 
     totalEl.textContent = fmt(S.total);
     const u = document.createElement('small'); u.textContent = '行'; totalEl.append(u);
     if (noteEl) noteEl.textContent = `解析ツールの ${S.files} ファイルの行数（コメントと空行を含む。共通部 ${fmt(rest)} 行も合計に含む）。数値計算には NumPy・SciPy ほか、骨組みと固有値の一部に PyNite を使っています。`;
+    // the tools as cards (the maker, 2026-11-08: show the solvers more visually): the picture each one has in the
+    // video (make_data.py draws them), what it checks in plain words, its method in small letters, and its lines
+    const WHAT = {
+      'シェルの静解析': '板や管の壁に、力がどう集まるか',
+      'ソリッドの静解析': 'ブラケットのような塊の部品の応力',
+      '梁の静解析': '骨組みの応力と、力の通り道',
+      '固有値と座屈': '揺れやすい振動数と、つぶれ始める力',
+      '有限要素の共通の核': '部品のつなぎ・力のかけ方・メッシュを確かめる土台',
+      '車両の動力学': '走る・曲がる・止まる。段差や傾きとタイヤの力',
+      'サスペンションの K&C': '足回りが動いたときの、タイヤの向きと位置',
+      '流体': '車のまわりの空気と、冠水路の水しぶき',
+      '衝突': 'ぶつかったときのつぶれ方と、乗る人の空間',
+      '疲労': 'くり返しかかる力での傷み',
+      '電力と熱': '電池とモーターの電力と温度',
+      '幾何と干渉': '部品どうし、人と部品がぶつからないか',
+      '組み立ての順番': '組めるか、どの順に組むか',
+      '感度解析': 'どの寸法を変えると、結果がどれだけ動くか',
+      '手計算の式': '解析の前に、答えの見当をつける式',
+    };
+    const SVG = 'http://www.w3.org/2000/svg';
     for (const c of S.cards) {
-      const li = document.createElement('li');
-      const x = document.createElement('span'); x.textContent = c.label.replace(' *', '');
-      const y = document.createElement('span'); y.textContent = `${fmt(c.lines)} 行`;
-      li.append(x, y); listEl.append(li);
+      const name = c.label.replace(' *', '');
+      const doc = new DOMParser().parseFromString(`<svg xmlns="${SVG}" viewBox="0 0 84 76">${c.icon || ''}</svg>`, 'image/svg+xml');
+      const pic = doc.querySelector('parsererror') ? document.createElementNS(SVG, 'svg') : document.importNode(doc.documentElement, true);
+      pic.setAttribute('viewBox', '0 0 84 76'); pic.setAttribute('role', 'img'); pic.setAttribute('aria-label', name);
+      const card = document.createElement('div'); card.className = 'sol';
+      const b = document.createElement('b'); b.textContent = name;
+      const p = document.createElement('p'); p.textContent = WHAT[name] || '';
+      const m = document.createElement('small'); m.className = 'm'; m.textContent = c.method;
+      const n = document.createElement('div'); n.className = 'n'; n.textContent = fmt(c.lines);
+      const u2 = document.createElement('small'); u2.textContent = '行'; n.append(u2);
+      card.append(pic, b, p, m, n); listEl.append(card);
     }
   }
   const watch = new IntersectionObserver((es) => { for (const e of es) { if (e.isIntersecting && !reduceMotion) e.target.play().catch(() => {}); else e.target.pause(); } }, { threshold: 0.2 });

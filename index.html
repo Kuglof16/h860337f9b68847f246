@@ -136,7 +136,16 @@
   .flows video { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; background: #000; }
   .flows figcaption { margin-top: 8px; font-size: 14px; color: #cfcabb; }
   .tools { background: var(--paper2); }
-  .tools .inner { display: grid; grid-template-columns: .9fr 1.1fr; gap: clamp(24px, 4vw, 56px); align-items: start; max-width: 1180px; margin: 0 auto; }
+  .tools .inner { max-width: 1180px; margin: 0 auto; }
+  /* the tools as cards: the picture each one had in the video, what it checks in plain words, its method, its lines */
+  .solgrid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-top: 22px; }
+  .sol { background: #fbf9f3; border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; }
+  .sol svg { width: 100%; height: auto; aspect-ratio: 84 / 76; display: block; background: #fffefb; border-radius: 6px; }
+  .sol b { margin-top: 9px; font-size: 15px; line-height: 1.3; }
+  .sol p { margin: 4px 0 0; font-size: 13px; line-height: 1.5; flex: 1; }
+  .sol small.m { display: block; margin-top: 5px; font-size: 11.5px; line-height: 1.4; color: var(--soft); }
+  .sol .n { margin-top: 6px; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .sol .n small { margin-left: 3px; font-size: 11.5px; font-weight: 400; color: var(--soft); }
   .total { font-size: clamp(50px, 6.6vw, 92px); font-weight: 700; line-height: 1; color: var(--red); font-variant-numeric: tabular-nums; margin: 8px 0 6px; }
   .total small { font-size: .32em; color: var(--ink); margin-left: 6px; font-weight: 400; }
   ul.solvers { list-style: none; margin: 0; padding: 0; columns: 2; column-gap: 26px; font-size: 14.5px; }
@@ -172,14 +181,15 @@
     .ann:not(.keep) { display: none; }
     .panel { background: rgb(244,241,234); }   /* opaque: the labels of the 3D no longer show through the words */
     #marks { clip-path: inset(0 var(--gutter)); }
-    .flows, .tools .inner { grid-template-columns: 1fr; }
+    .flows { grid-template-columns: 1fr; }
+    .solgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     footer .cols { grid-template-columns: 1fr 1fr; }
     footer .cols > div:first-child { grid-column: 1 / -1; }
   }
   @media (max-width: 520px) {
     nav.top a.ext { display: none; }
     .stats { grid-template-columns: 1fr 1fr 1fr; }
-    ul.solvers { columns: 1; }
+    .solgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
     /* the pairs: the name on its own line, the two numbers side by side below it */
     table.pairs, .pairs thead, .pairs tbody { display: block; }
     .pairs tr { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--line); }
@@ -335,7 +345,7 @@
       <div class="total" id="total"></div>
       <p class="tnote" id="tnote"></p>
     </div>
-    <ul class="solvers" id="solvers"></ul>
+    <div class="solgrid" id="solvers"></div>
   </div>
 </section>
 
