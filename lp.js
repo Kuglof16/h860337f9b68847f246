@@ -851,18 +851,19 @@ function makeView(data, lap, { nodes, quads, memIdx, vm, disp, crash }) {
         up.add(pet.group); yaw.add(up); petGroup.add(yaw);
         const a = deg * Math.PI / 180;
         yaw.position.set(PET_CX + PET_RX * Math.cos(a), PET_RY * Math.sin(a), 0);
-        pets.push({ pet, yaw, up, name: HP.ROLES.find((r) => r.id === role).name.replace(/役$/, ''), phase: i * 0.37 });   // まとめ・設計・パッケージ: with 「役」 the names sounded like someone playing a part
+        pets.push({ pet, yaw, up, role, name: HP.ROLES.find((r) => r.id === role).name.replace(/役$/, ''), phase: i * 0.37 });   // まとめ・設計・パッケージ: with 「役」 the names sounded like someone playing a part
       } catch (e) { console.warn('pet', role, e); }
       setTimeout(next, 40);
     };
     setTimeout(next, 500);
   }
-  const petHead = new THREE.Vector3(), petAt = new THREE.Vector3();
+  const petHead = new THREE.Vector3(), petAt = new THREE.Vector3(), petTo = new THREE.Vector3();
   /** The pets in this frame: k(i) is how far pet i has come in (0..1). Returns where each one's name goes. */
   function showPets(t, k) {
     petGroup.visible = pets.length > 0;
     const out = pets.map((q, i) => {
       const g = clamp(k(i));
+      if (q.home) q.yaw.position.copy(q.home);
       q.up.scale.setScalar(Math.max(0.0001, PET_MM * ease(g)));
       q.yaw.visible = g > 0.001;
       return { name: q.name, k: g, head: rig.localToWorld(petHead.copy(q.yaw.position).setZ(PET_MM * 2.75 * ease(g))).clone() };
@@ -877,8 +878,47 @@ function makeView(data, lap, { nodes, quads, memIdx, vm, disp, crash }) {
     });
     return out;
   }
+  // The last section (the maker, 2026-11-08: the pets looking the car over, and playing round it). Some stand at a
+  // part and face the car (working: the tool lit; report: leaning in; mismatch: a tilt of the head and a "?"); the
+  // rest play: one runs round the car, two hop, one sits. Places are mm from the car's middle (x ahead, y left).
+  const PLAY = {
+    'cae.crash': { at: [1520, 260], face: 'car', state: 'working' },        // at the front, the bumper
+    'cae.strength': { at: [250, -1180], face: 'car', state: 'report' },     // the right rail
+    'cae.nvh': { at: [-1660, -280], face: 'car', state: 'working' },        // behind, the rear suspension
+    'cae.thermal': { at: [-420, 1180], face: 'car', state: 'mismatch' },    // the battery, puzzled
+    designer: { at: [880, 1200], face: 'car', state: 'report' },
+    lead: { at: [2150, -1250], face: 'car', state: 'working' },
+    'cae.aero': { run: true },                                              // round and round the car
+    'cae.handling': { at: [2250, 1350], face: 'camera', state: 'pass' },    // hops
+    packager: { at: [-2150, 1250], face: 'camera', state: 'pass', phase: 0.45 },
+    'cae.powertrain': { at: [-1950, -1450], face: 'camera', state: 'idle', sit: 1 },
+  };
+  const RUN_RX = 2750, RUN_RY = 2000, RUN_S = 7.5;   // the runner's ellipse, mm, and seconds a lap
+  function playPets(t, k) {
+    petGroup.visible = pets.length > 0;
+    pets.forEach((q, i) => {
+      const g = clamp(k(i)), how = PLAY[q.role] || {};
+      if (!q.home) q.home = q.yaw.position.clone();
+      if (how.run) { const a = (2 * Math.PI * t) / RUN_S; q.yaw.position.set(PET_CX + RUN_RX * Math.cos(a), RUN_RY * Math.sin(a), 0); q.runA = a; }
+      else if (how.at) q.yaw.position.set(PET_CX + how.at[0], how.at[1], 0);
+      q.up.scale.setScalar(Math.max(0.0001, PET_MM * ease(g)));
+      q.yaw.visible = g > 0.001;
+    });
+    later(() => {
+      for (const q of pets) {
+        if (!q.yaw.visible) continue;
+        const how = PLAY[q.role] || {};
+        q.yaw.getWorldPosition(petAt);
+        if (how.run) rig.localToWorld(petTo.set(q.yaw.position.x - RUN_RX * Math.sin(q.runA) * 0.2, q.yaw.position.y + RUN_RY * Math.cos(q.runA) * 0.2, 0));   // ahead along the lap
+        else if (how.face === 'car') rig.localToWorld(petTo.set(PET_CX, 0, 0));
+        else petTo.copy(camera.position);
+        q.yaw.rotation.z = Math.atan2(petTo.x - petAt.x, -(petTo.y - petAt.y));
+        q.pet.update(t + q.phase + (how.phase || 0), how.run ? 'run' : how.state || 'idle', camera, { mark: false, sit: how.sit || 0 });
+      }
+    });
+  }
 
-  return { pets: showPets, radius, T_END, carX, reset, finish, storyAt, ringMark, pin, onCar, later, drawCar, poseStill, poseRec, recAt, onWheel: (n) => wheels[n].getWorldPosition(new THREE.Vector3()),
+  return { pets: showPets, playPets, radius, T_END, carX, reset, finish, storyAt, ringMark, pin, onCar, later, drawCar, poseStill, poseRec, recAt, onWheel: (n) => wheels[n].getWorldPosition(new THREE.Vector3()),
     resize, mixShot, turbo, tc, carOpacity, prop, rig, wheels, props: { stepBox, tableBox, wallBox, stopLine, pressLine, cones, trail }, tyreForces, trailTo: (k) => { trailGeo.setDrawRange(0, Math.floor(k * (lap.dlc.run.x.length - 1)) * 6); }, crashFrame, drawMode, steps, stepOf, buildOffset, N_STEPS, memberOf, maps,
     tint: (x) => { groundMat.opacity = x; }, shadow: (x) => { floorMat.opacity = x; }, frameFade: (x) => { frameMat.opacity = x; }, carS };
 }
@@ -1299,7 +1339,9 @@ add('ask', 110, {
     V.rig.visible = true;
     V.poseStill(X.crash, 4);
     V.drawCar(4);
-    return { az: 124 + p * 20, el: 15, dist: R * 3.35, look: lookAt(X.crash), sx: 0.24, sy: -0.02, my: 0.3 };
+    // the pets look the car over and play round it (they pop in one after another); a wider shot for the ring of them
+    const n = V.playPets ? (V.playPets(performance.now() / 1000, (i) => band(p, 0.01 + i * 0.012, 2, 0.02)), 1) : 0;
+    return { az: 112 + p * 46, el: n ? 22 : 15, dist: R * (n ? 5.6 : 3.35), look: lookAt(X.crash, n ? 260 : 640), sx: n ? 0.12 : 0.24, sy: -0.02, my: 0.3 };
   },
 });
 
@@ -1536,7 +1578,7 @@ window.LP = { beats, go: (id, p = 0) => { const b = beatById.get(id); const y = 
     check: [['check', 0.3, 0.98, 6], ['check', 0.98, 0.98, 4]],
     revise: [['chain1', 0.02, 1, 7.5], ['chain2', 0, 1, 4.5], ['chain3', 0, 1, 8], ['chain4', 0, 1, 7], ['chain4', 1, 1, 1.5]],
     tests: [['step', 0, 0.95, 5], ['brake', 0, 1, 14], ['dlc', 0, 1, 6.5], ['tilt', 0, 0.9, 9], ['heat', 0, 1, 6.5], ['crash', 0.02, 0.9, 7], ['shake', 0.05, 0.95, 4], ['build', 0.02, 1, 8.5]],
-    ask: [['ask', 0, 1, 12]],
+    ask: [['ask', 0, 1, 40]],   // long: the pets come in once at the start and then stay, playing
   };
   const beatById = new Map(beats.map((x) => [x.id, x]));
   const sections = $$('[data-scene]').map((el) => {
