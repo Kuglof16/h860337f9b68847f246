@@ -54,18 +54,34 @@ function setBig(el, value, unit) {
   el.textContent = value;
   if (unit) { const s = document.createElement('small'); s.textContent = unit; el.append(s); }
 }
-// the four friction circles (brake run): a circle is mu x the tyre's load, the line is the force the road gives it now
+// the four friction circles (brake run, lane change): a circle is mu x the tyre's load, the line is the force the road gives it now
 const fcEl = $('#hFc');
 let fcParts = null;
+/** One SVG element with its attributes, added to parent. */
+function svgEl(tag, attrs, parent) {
+  const e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  parent.append(e);
+  return e;
+}
 function drawFc(fc) {
   if (!fcEl) return;
   fcEl.style.display = fc ? '' : 'none';
   if (!fc) return;
   if (!fcParts) {
     const names = ['前・左', '前・右', '後・左', '後・右'];
-    fcEl.innerHTML = '<svg viewBox="0 0 232 76" aria-hidden="true">' + names.map((n, i) => `<g transform="translate(${29 + 58 * i},30)"><line class="ax" x1="-28" x2="28"/><line class="ax" y1="-28" y2="28"/><circle class="rim" r="26"/><line class="f" x2="0" y2="0"/><circle class="dot" r="3.6"/><text y="43">${n}</text></g>`).join('') + '</svg><p></p>';
-    fcParts = [...fcEl.querySelectorAll('g')].map((g) => ({ g, rim: g.querySelector('.rim'), f: g.querySelector('.f'), dot: g.querySelector('.dot') }));
-    fcParts.note = fcEl.querySelector('p');
+    fcEl.replaceChildren();
+    const svg = svgEl('svg', { viewBox: '0 0 232 76', 'aria-hidden': 'true' }, fcEl);
+    fcParts = names.map((n, i) => {
+      const g = svgEl('g', { transform: `translate(${29 + 58 * i},30)` }, svg);
+      svgEl('line', { class: 'ax', x1: -28, x2: 28 }, g);
+      svgEl('line', { class: 'ax', y1: -28, y2: 28 }, g);
+      const rim = svgEl('circle', { class: 'rim', r: 26 }, g), f = svgEl('line', { class: 'f', x2: 0, y2: 0 }, g), dot = svgEl('circle', { class: 'dot', r: 3.6 }, g);
+      svgEl('text', { y: 43 }, g).textContent = n;
+      return { g, rim, f, dot };
+    });
+    fcParts.note = document.createElement('p');
+    fcEl.append(fcParts.note);
   }
   const k = 26 / fc.max;   // the biggest circle of the run fills its place
   fc.wheels.forEach((w, i) => {
@@ -132,9 +148,12 @@ function makeView(data, lap, { nodes, quads, memIdx, vm, disp, crash }) {
   Object.assign(sun.shadow.camera, { left: -4200, right: 4200, top: 3600, bottom: -3600, near: 500, far: 14000 });
   scene.add(sun, sun.target);
   const aimSun = (x) => { sun.position.set(x - 500, 1500, 5200); sun.target.position.set(x, 0, 300); sun.target.updateMatrixWorld(); };
-  const floorMat = new THREE.ShadowMaterial({ opacity: 0.26 });
+  // The shadow catcher writes no depth and is drawn right after the grid. Before, both were sorted by distance, and the
+  // grid's 500 mm jumps after the camera swapped their order almost every frame: when the floor came first, its depth
+  // hid the grid 1 mm below it, so the grid blinked.
+  const floorMat = new THREE.ShadowMaterial({ opacity: 0.26, depthWrite: false });
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(90000, 40000), floorMat);
-  floor.position.z = 1; floor.receiveShadow = true; scene.add(floor);
+  floor.position.z = 1; floor.receiveShadow = true; floor.renderOrder = -1; scene.add(floor);
   const dl = new THREE.DirectionalLight(0xffffff, 1.5); dl.position.set(0.3, 0.5, 1); camera.add(dl);
   dl.target.position.set(0, 0, -1); camera.add(dl.target);
 
@@ -146,6 +165,7 @@ function makeView(data, lap, { nodes, quads, memIdx, vm, disp, crash }) {
   for (let y = -GY; y <= GY; y += GS) gridPts.push(-GX, y, 0, GX, y, 0);
   const gridGeo = new THREE.BufferGeometry(); gridGeo.setAttribute('position', new THREE.Float32BufferAttribute(gridPts, 3));
   const grid = new THREE.LineSegments(gridGeo, groundMat);
+  grid.renderOrder = -2;
   scene.add(grid);
 
   const story = new THREE.Group(); scene.add(story);
@@ -898,6 +918,16 @@ const B_LIMMAX = Math.max(...B_WN.flatMap((w) => B_TY[w].lim));
 const B_SLIDE = (() => { const u = []; RUN_B.t.forEach((_, i) => { if (RUN_B.v[i] > 3 && B_WN.every((w) => B_TY[w].slide[i])) for (const w of B_WN) u.push(Math.abs(B_TY[w].fx[i]) / B_TY[w].lim[i]); });
   return u.reduce((a, b) => a + b, 0) / u.length; })();
 const B_T_SLIDE = 1.2;   // a moment while all four slide, for the circles after the stop
+// the lane change: the same four friction circles, from its own record (mu 0.8 there)
+const D_TY = lap.dlc.tyre;
+const D_LIMMAX = Math.max(...B_WN.flatMap((w) => D_TY[w].lim));
+const D_USE = Math.max(...B_WN.flatMap((w) => D_TY[w].lim.map((l, i) => Math.hypot(D_TY[w].fx[i], D_TY[w].fy[i]) / l)));   // the most of a circle any tyre used
+const D_SLID = B_WN.some((w) => D_TY[w].slide.some(Boolean));
+function dlcTyres(t) {
+  const T = RUN_D.t, n = T.length, u = clamp((t - T[0]) / (T[n - 1] - T[0])) * (n - 1), i = Math.min(n - 2, Math.floor(u)), f = u - i;
+  const g = (a) => a[i] + (a[i + 1] - a[i]) * f;
+  return B_WN.map((w) => ({ fx: g(D_TY[w].fx), fy: g(D_TY[w].fy), lim: g(D_TY[w].lim), slide: D_TY[w].slide[f < 0.5 ? i : i + 1] }));
+}
 
 const beats = [];
 const add = (id, len, o = {}) => { beats.push({ id, len, ...o }); };
@@ -1115,11 +1145,15 @@ add('dlc', 100, {
     V.prop(V.props.cones, 1);
     V.prop(V.props.trail, 1);
     V.trailTo(clamp(p));
-    return { az: 184, el: 44, dist: R * 8.2, look: [X.dlc + rec.x + 1500, rec.y * 0.85, 0], sx: 0, sy: -0.05 };
+    // from the front: the car comes toward the camera through the cones, its line behind it
+    return { az: 8, el: 22, dist: R * 5.4, look: [X.dlc + rec.x - 200, rec.y * 0.85, 750], sx: 0, sy: -0.05 };
   },
   hud(p) {
-    const rec = recIn(RUN_D, last(RUN_D.t) * clamp(p)), P = lap.dlc.pair;
-    return { big: NUM(Math.abs(rec.r), 2), unit: '°', cap: `車体の傾き（最大 ${NUM(lap.dlc.max_roll, 2)}°、40 km/h で車線変更）`, hand: p > 0.3 ? `${NUM(P.hand, 3)} g` : '', cae: p > 0.3 ? `${NUM(P.cae, 3)} g` : '', state: p > 0.3 ? 'OK' : '' };
+    const t = last(RUN_D.t) * clamp(p), rec = recIn(RUN_D, t), P = lap.dlc.pair;
+    // the circles are seen from above with the car's front up (the camera here looks from the front, so they are mirrored)
+    const note = `上から見た摩擦円 (μ ${NUM(lap.dlc.mu, 1)} × 荷重) と、いまタイヤが路面から受ける力。いちばん使ったときで円の ${NUM(D_USE * 10, 0)} 割${D_SLID ? '' : '、どのタイヤも滑らない'}`;
+    return { big: NUM(Math.abs(rec.r), 2), unit: '°', cap: `車体の傾き（最大 ${NUM(lap.dlc.max_roll, 2)}°、40 km/h で車線変更）`, hand: p > 0.3 ? `${NUM(P.hand, 3)} g` : '', cae: p > 0.3 ? `${NUM(P.cae, 3)} g` : '', state: p > 0.3 ? 'OK' : '',
+      fc: { wheels: dlcTyres(t), max: D_LIMMAX, note } };
   },
 });
 add('tilt', 150, {
