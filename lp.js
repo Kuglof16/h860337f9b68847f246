@@ -863,6 +863,7 @@ function makeView(data, lap, { nodes, quads, memIdx, vm, disp, crash }) {
     petGroup.visible = pets.length > 0;
     const out = pets.map((q, i) => {
       const g = clamp(k(i));
+      if (q.yaw.parent !== petGroup) petGroup.add(q.yaw);   // the driver of the last section comes back out of the car
       if (q.home) q.yaw.position.copy(q.home);
       q.up.scale.setScalar(Math.max(0.0001, PET_MM * ease(g)));
       q.yaw.visible = g > 0.001;
@@ -878,42 +879,71 @@ function makeView(data, lap, { nodes, quads, memIdx, vm, disp, crash }) {
     });
     return out;
   }
-  // The last section (the maker, 2026-11-08: the pets looking the car over, and playing round it). Some stand at a
-  // part and face the car (working: the tool lit; report: leaning in; mismatch: a tilt of the head and a "?"); the
-  // rest play: one runs round the car, two hop, one sits. Places are mm from the car's middle (x ahead, y left).
+  // The last section (the maker, 2026-11-08: the pets up to mischief round the car, no people in it). Three push on
+  // the left side (the side the camera sees) to tip it over and the car rocks on its right tyres (it never goes over);
+  // the handling pet sits in
+  // the driver's seat with its hands out to the wheel; the lead looks on, two hop, one is puzzled, one sits, and the
+  // aero pet runs laps outside them all. Places are mm from the car's middle (x ahead, y left). The places keep every
+  // two pets at least 890 mm apart, centre to centre, and the runner's lap at least 897 mm from any of them (a pet is
+  // about 500 mm across), so nobody walks through anybody.
   const PLAY = {
-    'cae.crash': { at: [1520, 260], face: 'car', state: 'working' },        // at the front, the bumper
-    'cae.strength': { at: [250, -1180], face: 'car', state: 'report' },     // the right rail
-    'cae.nvh': { at: [-1660, -280], face: 'car', state: 'working' },        // behind, the rear suspension
-    'cae.thermal': { at: [-420, 1180], face: 'car', state: 'mismatch' },    // the battery, puzzled
-    designer: { at: [880, 1200], face: 'car', state: 'report' },
-    lead: { at: [2150, -1250], face: 'car', state: 'working' },
-    'cae.aero': { run: true },                                              // round and round the car
-    'cae.handling': { at: [2250, 1350], face: 'camera', state: 'pass' },    // hops
-    packager: { at: [-2150, 1250], face: 'camera', state: 'pass', phase: 0.45 },
-    'cae.powertrain': { at: [-1950, -1450], face: 'camera', state: 'idle', sit: 1 },
+    'cae.crash': { at: [-890, 1000], push: true },
+    'cae.strength': { at: [0, 1000], push: true, phase: 0.2 },
+    'cae.nvh': { at: [890, 1000], push: true, phase: 0.4 },
+    'cae.handling': { drive: true },
+    lead: { at: [0, -1250], face: 'car', state: 'report' },
+    designer: { at: [2050, 900], face: 'camera', state: 'pass' },
+    packager: { at: [2050, -700], face: 'camera', state: 'pass', phase: 0.45 },
+    'cae.thermal': { at: [-2000, 800], face: 'car', state: 'mismatch' },
+    'cae.powertrain': { at: [-2000, -700], face: 'camera', state: 'idle', sit: 1 },
+    'cae.aero': { run: true },
   };
-  const RUN_RX = 2750, RUN_RY = 2000, RUN_S = 7.5;   // the runner's ellipse, mm, and seconds a lap
+  const RUN_RX = 3400, RUN_RY = 2500, RUN_S = 8.5;            // the runner's ellipse, mm, and seconds a lap
+  const SEAT = [-1150, -300, 666], WHEEL_AHEAD = 1000;        // the driver's seat top (seat_R), mm in the car
+  const PUSH_S = 3.2, ROCK_MAX = 8 * Math.PI / 180, ROCK_Y = -710;   // a push every 3.2 s; the right tyres' outer edge
+  /** How far the car is lifted now (0..1): each push lifts it and lets it fall back. */
+  const pushWave = (t) => Math.max(0, Math.sin((2 * Math.PI * t) / PUSH_S)) ** 2;
+  /** The car rocks about its right tyres' outer edge (ROCK_Y) by a (radians; positive lifts the left side). */
+  function rock(a) {
+    if (!a) return;
+    const c = Math.cos(a), s = Math.sin(a);
+    body.rotation.x = a; body.position.set(0, ROCK_Y - ROCK_Y * c, -ROCK_Y * s);
+    for (const w of wheels) {
+      const y = w.position.y - ROCK_Y, z = w.position.z;
+      w.position.y = ROCK_Y + y * c - z * s; w.position.z = y * s + z * c; w.rotation.x += a;
+    }
+    rig.updateMatrixWorld(true);
+  }
   function playPets(t, k) {
     petGroup.visible = pets.length > 0;
+    rock(ROCK_MAX * pushWave(t));
     pets.forEach((q, i) => {
       const g = clamp(k(i)), how = PLAY[q.role] || {};
       if (!q.home) q.home = q.yaw.position.clone();
+      const parent = how.drive ? body : petGroup;   // the driver rocks with the car
+      if (q.yaw.parent !== parent) parent.add(q.yaw);
       if (how.run) { const a = (2 * Math.PI * t) / RUN_S; q.yaw.position.set(PET_CX + RUN_RX * Math.cos(a), RUN_RY * Math.sin(a), 0); q.runA = a; }
+      else if (how.drive) q.yaw.position.set(...SEAT);
       else if (how.at) q.yaw.position.set(PET_CX + how.at[0], how.at[1], 0);
       q.up.scale.setScalar(Math.max(0.0001, PET_MM * ease(g)));
       q.yaw.visible = g > 0.001;
     });
     later(() => {
+      const lift = pushWave(t);
       for (const q of pets) {
         if (!q.yaw.visible) continue;
         const how = PLAY[q.role] || {};
         q.yaw.getWorldPosition(petAt);
         if (how.run) rig.localToWorld(petTo.set(q.yaw.position.x - RUN_RX * Math.sin(q.runA) * 0.2, q.yaw.position.y + RUN_RY * Math.cos(q.runA) * 0.2, 0));   // ahead along the lap
+        else if (how.drive) body.localToWorld(petTo.set(SEAT[0] + WHEEL_AHEAD, SEAT[1], SEAT[2]));
+        else if (how.push) rig.localToWorld(petTo.set(q.yaw.position.x, q.yaw.position.y - 1000, 0));   // square on to the car's side
         else if (how.face === 'car') rig.localToWorld(petTo.set(PET_CX, 0, 0));
         else petTo.copy(camera.position);
         q.yaw.rotation.z = Math.atan2(petTo.x - petAt.x, -(petTo.y - petAt.y));
-        q.pet.update(t + q.phase + (how.phase || 0), how.run ? 'run' : how.state || 'idle', camera, { mark: false, sit: how.sit || 0 });
+        const tt = t + q.phase + (how.phase || 0);
+        if (how.drive) q.pet.update(tt, 'working', camera, { mark: false, sit: 1, arms: 1.15, turn: 0.18 * Math.sin((2 * Math.PI * t) / 1.7) });
+        else if (how.push) q.pet.update(tt, 'run', camera, { mark: false, arms: 1.25 + 0.25 * lift });
+        else q.pet.update(tt, how.run ? 'run' : how.state || 'idle', camera, { mark: false, sit: how.sit || 0 });
       }
     });
   }
@@ -1335,13 +1365,15 @@ add('credit', 110, {
 });
 add('ask', 110, {
   chapter: '',
-  act(p) {
+  act(p, ctx = {}) {
     V.rig.visible = true;
     V.poseStill(X.crash, 4);
-    V.drawCar(4);
-    // the pets look the car over and play round it (they pop in one after another); a wider shot for the ring of them
+    V.drawCar(4, { grow: (id, b) => (b.k === 'o' ? 0 : 1) });   // no people: the pets have the car to themselves
+    // the pets get up to mischief round the car (they pop in one after another); a wider shot for the ring of them
     const n = V.playPets ? (V.playPets(performance.now() / 1000, (i) => band(p, 0.01 + i * 0.012, 2, 0.02)), 1) : 0;
-    return { az: 112 + p * 46, el: n ? 22 : 15, dist: R * (n ? 5.6 : 3.35), look: lookAt(X.crash, n ? 260 : 640), sx: n ? 0.12 : 0.24, sy: -0.02, my: 0.3 };
+    // on a phone the camera already stands back for the narrow room, so it starts nearer: the car and the pushers fill
+    // the room and the runner may leave it now and then
+    return { az: 112 + p * 46, el: n ? 22 : 15, dist: R * (n ? (ctx.wide === false ? 3.3 : 5.6) : 3.35), look: lookAt(X.crash, n ? 260 : 640), sx: n ? 0.12 : 0.24, sy: -0.02, my: 0.3 };
   },
 });
 
