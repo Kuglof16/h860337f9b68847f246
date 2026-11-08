@@ -107,6 +107,7 @@
   #hBig { font-size: clamp(34px, 4vw, 54px); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
   #hBig small { font-size: .42em; margin-left: 6px; font-weight: 400; }
   #hCap { margin-top: 6px; font-size: 13.5px; line-height: 1.5; color: var(--soft); }
+  #hCap span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; }
   #hPair { margin-top: 8px; font-size: 14px; font-variant-numeric: tabular-nums; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; font-weight: 700; }
   #hHand::before, #hCae::before { content: ""; display: inline-block; vertical-align: 1px; margin-right: 6px; }
   #hHand::before { width: 9px; height: 9px; border: 2.5px solid var(--ink); border-radius: 50%; }
@@ -164,17 +165,19 @@
 
   @media (max-width: 900px) {
     nav.top a.sec { display: none; }
-    .scene { align-items: flex-start; padding-top: 18px; min-height: 108svh; }
+    /* a phone: the words first, then room below them where the car plays as one scrolls on (before, the car only had
+       the last strip of the screen under a panel that filled the rest) */
+    .scene { align-items: flex-start; padding-top: 18px; padding-bottom: 58svh; min-height: 108svh; }
     .panel { width: 100%; }
     .ann:not(.keep) { display: none; }
-    .panel { background: rgba(244,241,234,.97); }
+    .panel { background: rgb(244,241,234); }   /* opaque: the labels of the 3D no longer show through the words */
     #marks { clip-path: inset(0 var(--gutter)); }
     .flows, .tools .inner { grid-template-columns: 1fr; }
     footer .cols { grid-template-columns: 1fr 1fr; }
     footer .cols > div:first-child { grid-column: 1 / -1; }
   }
   @media (max-width: 520px) {
-    nav.top a.ext { display: none; }
+    nav.top a.ext:not([data-link="video"]) { display: none; }   /* the video stays in the bar on a phone too */
     .stats { grid-template-columns: 1fr 1fr 1fr; }
     ul.solvers { columns: 1; }
     /* the pairs: the name on its own line, the two numbers side by side below it */

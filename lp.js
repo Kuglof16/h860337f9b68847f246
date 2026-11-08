@@ -100,6 +100,7 @@ function hud(o, opacity = 1) {
   hudEl.big.style.color = o.color || '';
   setText(hudEl.cap, o.cap ?? '');
   hudEl.cap.style.display = o.cap ? '' : 'none';
+  if (hudEl.cap.title !== (o.cap ?? '')) hudEl.cap.title = o.cap ?? '';   // the whole caption on hover, when it is cut at four lines
   setText(hudEl.hand, o.hand ? `手計算 ${o.hand}` : '');
   setText(hudEl.cae, o.cae ? `解析 ${o.cae}` : '');
   setText(hudEl.state, o.state ?? '');
@@ -1567,6 +1568,44 @@ window.LP = { beats, go: (id, p = 0) => { const b = beatById.get(id); const y = 
     const top = seen ? clamp(r.bottom, HEADER, Hv - 180) : HEADER, free = Hv - top;
     return { sx: 0.2, my: (top + free / 2) / Hv - 0.5, k: clamp(ROOM_TALL / (free / Hv), 1, Wv < 600 ? 1.25 : 1.8) };
   }
+  // The words under a section's text change while its beats play: a build step's caption runs from one line to four
+  // (cut there; the four corner groups list ten parts each), and the friction circles come and go with the tabs.
+  // The slot grew and shrank with them, so everything below the section, the dark film band too, shook up and down.
+  // The slot keeps the tallest the words get in its section instead: measured once on a hidden copy of the box, one
+  // measure per different text (every digit has one width), and again when the width changes.
+  function holdSlot(sec) {
+    const w = sec.slot.clientWidth;
+    if (!w || sec.slotW === w) return;
+    sec.slotW = w;
+    const outs = [];
+    for (const g of sec.seq) {
+      if (!g.beat.hud) continue;
+      for (let i = 0; i <= 240; i++) { const o = g.beat.hud(g.mode === 'intro' ? 0 : lerp(g.a, g.z, i / 240)); if (o) outs.push(o); }
+    }
+    const withFc = outs.find((o) => o.fc);
+    if (withFc && !fcParts) { drawFc(withFc.fc); drawFc(null); }   // the circles' drawing is made on first use; make it before copying
+    const pr = hudEl.box.cloneNode(true);
+    Object.assign(pr.style, { position: 'absolute', left: '-10000px', top: '0', width: `${w}px`, visibility: 'hidden', transition: 'none' });
+    sec.slot.append(pr);
+    const q = (sel) => pr.querySelector(sel);
+    const big = q('#hBig span'), cap = q('#hCap span'), hand = q('#hHand'), cae = q('#hCae'), state = q('#hState'), fc = q('#hFc'), note = fc && fc.querySelector('p');
+    const seen = new Set();
+    let tallest = 0;
+    for (const o of outs) {
+      const key = JSON.stringify([o.big, o.unit, o.cap, o.hand, o.cae, o.state, !!o.fc, o.fc?.note]).replace(/\d/g, '0');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      setBig(big, o.big ?? '', o.unit ?? ''); big.style.display = o.big ? '' : 'none';
+      cap.textContent = o.cap ?? ''; cap.style.display = o.cap ? '' : 'none';
+      hand.textContent = o.hand ? `手計算 ${o.hand}` : ''; cae.textContent = o.cae ? `解析 ${o.cae}` : ''; state.textContent = o.state ?? '';
+      if (fc) fc.style.display = o.fc ? '' : 'none';
+      if (note) note.textContent = o.fc?.note ?? '';
+      tallest = Math.max(tallest, pr.offsetHeight);
+    }
+    pr.remove();
+    sec.slot.style.minHeight = `${Math.ceil(tallest)}px`;
+  }
+  window.addEventListener('resize', () => { for (const s of sections) s.slotW = 0; });
   function tick(now) {
     requestAnimationFrame(tick);
     const s = whichSection();
@@ -1578,6 +1617,7 @@ window.LP = { beats, go: (id, p = 0) => { const b = beatById.get(id); const y = 
     canvasEl.style.visibility = show ? 'visible' : 'hidden';
     marksEl.style.visibility = show ? 'visible' : 'hidden';
     if (!active) return;
+    if (active.slot) holdSlot(active);
     let t = reduceMotion ? active.total * 0.7 : ((now - since) / 1000 + offset) % active.total;
     const g = active.seq.find((x) => t >= x.start && t < x.start + x.sec) || active.seq[active.seq.length - 1];
     if (g.beat.id !== 'brake' && now - lastDraw < 30) return;   // about 30 frames a second is enough for the rest of the page
