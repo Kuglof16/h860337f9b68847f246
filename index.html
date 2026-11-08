@@ -177,7 +177,7 @@
     footer .cols > div:first-child { grid-column: 1 / -1; }
   }
   @media (max-width: 520px) {
-    nav.top a.ext:not([data-link="video"]) { display: none; }   /* the video stays in the bar on a phone too */
+    nav.top a.ext { display: none; }
     .stats { grid-template-columns: 1fr 1fr 1fr; }
     ul.solvers { columns: 1; }
     /* the pairs: the name on its own line, the two numbers side by side below it */
@@ -203,9 +203,9 @@
       <a class="sec" href="#check">二重チェック</a>
       <a class="sec" href="#revise">設計を直す</a>
       <a class="sec" href="#tests">確かめられること</a>
-      <a class="ext" data-link="video" href="#">動画</a>
+      <a class="ext" data-link="demo" href="#">デモ</a>
       <a class="ext" data-link="repo" href="#">GitHub</a>
-      <a class="btn" data-link="demo" href="#">デモを見る</a>
+      <a class="btn" data-link="video" href="#">動画を見る</a>
     </nav>
   </div>
 </header>
@@ -217,8 +217,8 @@
     <p class="lead">作る前に、CAE で確かめる AI エージェント</p>
     <p class="what">CAE = コンピュータで設計を試す技術</p>
     <div class="ctas">
-      <a class="btn big" data-link="demo" href="#">デモを見る <span aria-hidden="true">→</span></a>
-      <a class="btn ghost big" data-link="video" href="#">3 分の動画</a>
+      <a class="btn big" data-link="video" href="#">動画を見る (3 分) <span aria-hidden="true">→</span></a>
+      <a class="btn ghost big" data-link="demo" href="#">デモを見る</a>
     </div>
   </div>
   <a class="cue" href="#why"><span>下へ続きます</span><i aria-hidden="true"></i></a>
@@ -345,7 +345,7 @@
     <p>インストールは要りません。保存した実行を、そのまま再生します。</p>
     <div class="ctas">
       <a class="btn big" data-link="demo" href="#">デモを見る <span aria-hidden="true">→</span></a>
-      <a class="btn ghost" data-link="video" href="#">3 分の動画</a>
+      <a class="btn ghost" data-link="video" href="#">動画を見る (3 分)</a>
       <a class="btn ghost" data-link="repo" href="#">GitHub</a>
     </div>
   </div>
@@ -373,8 +373,8 @@
     <div>
       <h4>リンク</h4>
       <ul>
+        <li><a data-link="video" href="#">紹介動画 (3 分)</a></li>
         <li><a data-link="demo" href="#">デモを見る</a></li>
-        <li><a data-link="video" href="#">3 分の動画</a></li>
         <li><a data-link="repo" href="#">GitHub のリポジトリ</a></li>
       </ul>
     </div>

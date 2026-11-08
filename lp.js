@@ -809,7 +809,16 @@ function makeView(data, lap, { nodes, quads, memIdx, vm, disp, crash }) {
       if (a.frame !== frameNo) a.el.style.opacity = 0;
       else if (a.at) {
         place(a.el, a.at);
-        if (a.el.style.opacity > 0) a.el.classList.toggle('left', parseFloat(a.el.style.left) + a.b.offsetWidth + 24 > W);
+        if (a.el.style.opacity > 0) {
+          a.el.classList.toggle('left', parseFloat(a.el.style.left) + a.b.offsetWidth + 24 > W);
+          // on a narrow screen a long label can run off the side whichever way it opens: slide its words back in
+          // (the dot and the line stay on the part; the strip kept for labels is 18 px in from each side)
+          a.b.style.translate = '';
+          const rb = a.b.getBoundingClientRect(), edge = W < 900 ? 18 : 6;
+          const dx = rb.left < edge ? edge - rb.left : rb.right > W - edge ? (W - edge) - rb.right : 0;
+          const dy = rb.bottom > H - 8 ? (H - 8) - rb.bottom : rb.top < 64 ? 64 - rb.top : 0;   // nor below the screen or under the bar
+          if (dx || dy) a.b.style.translate = `${Math.round(dx)}px ${Math.round(dy)}px`;
+        }
       }
     }
     renderer.render(scene, camera);
@@ -1564,9 +1573,11 @@ window.LP = { beats, go: (id, p = 0) => { const b = beatById.get(id); const y = 
       const left = seen ? Math.max(0, r.right) : 0, free = Math.max(160, Wv - left);
       return { sx: (left + free / 2) / Wv - 0.5, my: 0.2, k: clamp(ROOM_WIDE / (free / Hv), 1, 1.8) };
     }
-    // a phone: the words fill most of the screen, so the camera stands back only a little (or the car gets too small)
+    // a phone: the room is below the words. It is as wide as the screen, and that is narrow: the shots were made for a
+    // room 0.93 screen heights wide, so the camera also stands back by that much (before, it stood back for the room's
+    // height only, and once one scrolled the words away the car ran off both sides). Centred: the words are not beside it.
     const top = seen ? clamp(r.bottom, HEADER, Hv - 180) : HEADER, free = Hv - top;
-    return { sx: 0.2, my: (top + free / 2) / Hv - 0.5, k: clamp(ROOM_TALL / (free / Hv), 1, Wv < 600 ? 1.25 : 1.8) };
+    return { tall: true, my: (top + free / 2) / Hv - 0.5, k: clamp(Math.max(ROOM_TALL / (free / Hv), ROOM_WIDE / (Wv / Hv)), 1, 2.6) };
   }
   // The words under a section's text change while its beats play: a build step's caption runs from one line to four
   // (cut there; the four corner groups list ten parts each), and the friction circles come and go with the tabs.
@@ -1643,7 +1654,7 @@ window.LP = { beats, go: (id, p = 0) => { const b = beatById.get(id); const y = 
     // the words sit on the left: the car stands in the room right of them (on a tall screen, below them),
     // and the camera stands back when that room is small, so the words never cover much of the car
     const room = freeRoom(active);
-    shot = { ...shot, dist: shot.dist * room.k, sx: room.sx + (Math.min(0.24, (shot.sx ?? 0) + 0.12) - 0.2), sy: -0.04, my: room.my };
+    shot = { ...shot, dist: shot.dist * room.k, sx: room.tall ? 0 : room.sx + (Math.min(0.24, (shot.sx ?? 0) + 0.12) - 0.2), sy: -0.04, my: room.my };
     if (fromShot && now - switchedAt < 900) shot = V.mixShot(fromShot, shot, ease((now - switchedAt) / 900));
     lastShot = shot;
     V.finish(shot);
